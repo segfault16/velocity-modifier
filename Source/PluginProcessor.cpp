@@ -141,9 +141,6 @@ void VelocityModifierAudioProcessor::processBlock (AudioBuffer<float>& buffer, M
         {
             uint8 oldVel = (uint8) m.getVelocity();
             // Scale velocity based on midiRangeValue and midiCompressionValue
-            //
-            
-            // Scale velocity based on midiCompressionValue
             float lowVal = 0.0;
             float highVal = 1.0;
             if (midiCompressionValue >= 0) {
@@ -151,6 +148,14 @@ void VelocityModifierAudioProcessor::processBlock (AudioBuffer<float>& buffer, M
             } else {
                 highVal = 1.0 - (- midiCompressionValue);
             }
+            // Adjust lowVal and highVal by midiRangeValue
+            // 1.0 -> entire range, lowVal and highVal unaltered
+            // 0.0 -> single value
+            float curRange = (highVal - lowVal) / 2.0;
+            float meanVal = (highVal + lowVal) / 2.0;
+            highVal = meanVal + curRange * midiRangeValue;
+            lowVal = meanVal - curRange * midiRangeValue;
+            
             float oldNormed = oldVel / 127.0;
             
             float newNormed = lowVal + oldNormed * (highVal - lowVal);
