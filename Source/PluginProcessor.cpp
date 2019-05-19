@@ -24,6 +24,16 @@ VelocityModifierAudioProcessor::VelocityModifierAudioProcessor()
                        )
 #endif
 {
+    addParameter (midiRangeValue = new AudioParameterFloat ("midiRangeValue", // parameter ID
+                                                  "Velocity Range", // parameter name
+                                                  0.0f,   // minimum value
+                                                  1.0f,   // maximum value
+                                                  1.0f)); // default value
+    addParameter (midiCompressionValue = new AudioParameterFloat ("midiCompressionValue", // parameter ID
+                                                            "Velocity Compression", // parameter name
+                                                            -1.0f,   // minimum value
+                                                            1.0f,   // maximum value
+                                                            0.0f)); // default value
 }
 
 VelocityModifierAudioProcessor::~VelocityModifierAudioProcessor()
@@ -143,18 +153,18 @@ void VelocityModifierAudioProcessor::processBlock (AudioBuffer<float>& buffer, M
             // Scale velocity based on midiRangeValue and midiCompressionValue
             float lowVal = 0.0;
             float highVal = 1.0;
-            if (midiCompressionValue >= 0) {
-                lowVal = midiCompressionValue;
+            if (*midiCompressionValue >= 0) {
+                lowVal = *midiCompressionValue;
             } else {
-                highVal = 1.0 - (- midiCompressionValue);
+                highVal = 1.0 - (- *midiCompressionValue);
             }
             // Adjust lowVal and highVal by midiRangeValue
             // 1.0 -> entire range, lowVal and highVal unaltered
             // 0.0 -> single value
             float curRange = (highVal - lowVal) / 2.0;
             float meanVal = (highVal + lowVal) / 2.0;
-            highVal = meanVal + curRange * midiRangeValue;
-            lowVal = meanVal - curRange * midiRangeValue;
+            highVal = meanVal + curRange * *midiRangeValue;
+            lowVal = meanVal - curRange * *midiRangeValue;
             
             float oldNormed = oldVel / 127.0;
             
@@ -176,8 +186,8 @@ void VelocityModifierAudioProcessor::processBlock (AudioBuffer<float>& buffer, M
         else if (m.isControllerOfType(1)) {
             // Change midiCompressionValue, leave Controller Message unaltered
             int cVal = m.getControllerValue();
-            midiCompressionValue = (cVal - 64.0) / 127.0;
-            midiCompressionValue = fmax(fmin(midiCompressionValue, -1), 1);
+            *midiCompressionValue = (cVal - 64.0) / 127.0;
+            *midiCompressionValue = fmax(fmin(*midiCompressionValue, -1), 1);
         }
         processedMidi.addEvent (m, time);
     }
@@ -201,12 +211,25 @@ void VelocityModifierAudioProcessor::getStateInformation (MemoryBlock& destData)
     // You should use this method to store your parameters in the memory block.
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
+    std::unique_ptr<XmlElement> xml (new XmlElement ("ParamVelocityModifier"));
+    xml->setAttribute ("midiCompressionValue", (double) *midiCompressionValue);
+    xml->setAttribute ("midiRangeValue", (double) *midiRangeValue);
+    copyXmlToBinary (*xml, destData);
 }
 
 void VelocityModifierAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
+    std::unique_ptr<XmlElement> xmlState (getXmlFromBinary (data, sizeInBytes));
+    if (xmlState.get() != nullptr)
+    {
+        if (xmlState->hasTagName ("ParamVelocityModifier"))
+        {
+            *midiCompressionValue = (float) xmlState->getDoubleAttribute ("midiCompressionValue", 0.0);
+            *midiRangeValue = (float) xmlState->getDoubleAttribute ("midiRangeValue", 1.0);
+        }
+    }
 }
 
 //==============================================================================

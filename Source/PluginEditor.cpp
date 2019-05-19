@@ -71,8 +71,8 @@ void VelocityModifierAudioProcessorEditor::resized()
 void VelocityModifierAudioProcessorEditor::sliderValueChanged (Slider* slider)
 {
     if(slider->getComponentID() == midiCompressionSlider.getComponentID()) {
-        processor.midiCompressionValue = slider->getValue();
+        *processor.midiCompressionValue = slider->getValue();
     } else if (slider->getComponentID() == midiRangeSlider.getComponentID()) {
-        processor.midiRangeValue = slider->getValue();
+        *processor.midiRangeValue = slider->getValue();
     }
 }

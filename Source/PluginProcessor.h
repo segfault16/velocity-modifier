@@ -18,8 +18,8 @@
 class VelocityModifierAudioProcessor  : public AudioProcessor
 {
 public:
-    float midiCompressionValue;
-    float midiRangeValue;
+    AudioParameterFloat* midiCompressionValue;
+    AudioParameterFloat* midiRangeValue;
     
     
     //==============================================================================
