@@ -18,8 +18,22 @@
 class VelocityModifierAudioProcessor  : public AudioProcessor
 {
 public:
+    // Velocity compression
+    const String p_midiCompressionValue = "midiCompressionValue";
+    const String p_midiCompressionFilterControl = "midiCompressionFilterControl";
+    const String p_midiCompressionControlCC = "midiCompressionControlCC";
     AudioParameterFloat* midiCompressionValue;
+    AudioParameterBool* midiCompressionFilterControl; // Filter out control Message?
+    AudioParameterInt* midiCompressionControlCC; // CC for Control Message
+    
+    // Velocity range
+    const String p_midiRangeValue = "midiRangeValue";
+    const String p_midiRangeFilterControl = "midiRangeFilterControl";
+    const String p_midiRangeControlCC = "midiRangeControlCC";
     AudioParameterFloat* midiRangeValue;
+    AudioParameterBool* midiRangeFilterControl; // Filter out control Message?
+    AudioParameterInt* midiRangeControlCC; // CC for Control Message
+    
     
     
     //==============================================================================

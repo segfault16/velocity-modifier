@@ -1,12 +1,12 @@
 /*
-  ==============================================================================
-
-    This file was auto-generated!
-
-    It contains the basic framework code for a JUCE plugin processor.
-
-  ==============================================================================
-*/
+ ==============================================================================
+ 
+ This file was auto-generated!
+ 
+ It contains the basic framework code for a JUCE plugin processor.
+ 
+ ==============================================================================
+ */
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
@@ -14,26 +14,47 @@
 //==============================================================================
 VelocityModifierAudioProcessor::VelocityModifierAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
-     : AudioProcessor (BusesProperties()
-                     #if ! JucePlugin_IsMidiEffect
-                      #if ! JucePlugin_IsSynth
-                       .withInput  ("Input",  AudioChannelSet::stereo(), true)
-                      #endif
-                       .withOutput ("Output", AudioChannelSet::stereo(), true)
-                     #endif
-                       )
+: AudioProcessor (BusesProperties()
+#if ! JucePlugin_IsMidiEffect
+#if ! JucePlugin_IsSynth
+                  .withInput  ("Input",  AudioChannelSet::stereo(), true)
+#endif
+                  .withOutput ("Output", AudioChannelSet::stereo(), true)
+#endif
+                  )
 #endif
 {
-    addParameter (midiRangeValue = new AudioParameterFloat ("midiRangeValue", // parameter ID
-                                                  "Velocity Range", // parameter name
-                                                  0.0f,   // minimum value
-                                                  1.0f,   // maximum value
-                                                  1.0f)); // default value
-    addParameter (midiCompressionValue = new AudioParameterFloat ("midiCompressionValue", // parameter ID
-                                                            "Velocity Compression", // parameter name
-                                                            -1.0f,   // minimum value
+    addParameter (midiRangeValue = new AudioParameterFloat (p_midiRangeValue, // parameter ID
+                                                            "Velocity Range", // parameter name
+                                                            0.0f,   // minimum value
                                                             1.0f,   // maximum value
-                                                            0.0f)); // default value
+                                                            1.0f)); // default value
+    
+    addParameter(midiRangeFilterControl = new AudioParameterBool(p_midiRangeFilterControl,
+                                                                 "Filter Range Control Message",
+                                                                 false));
+    
+    addParameter(midiRangeControlCC = new AudioParameterInt(p_midiRangeControlCC,
+                                                            "CC for Range control",
+                                                            -1,
+                                                            127,
+                                                            -1));
+    
+    
+    addParameter (midiCompressionValue = new AudioParameterFloat (p_midiCompressionValue, // parameter ID
+                                                                  "Velocity Compression", // parameter name
+                                                                  -1.0f,   // minimum value
+                                                                  1.0f,   // maximum value
+                                                                  0.0f)); // default value
+    addParameter(midiCompressionFilterControl = new AudioParameterBool(p_midiCompressionFilterControl,
+                                                                 "Filter Compression Control Message",
+                                                                 false));
+    
+    addParameter(midiCompressionControlCC = new AudioParameterInt(p_midiCompressionControlCC,
+                                                            "CC for Compression control",
+                                                            -1,
+                                                            127,
+                                                            -1));
 }
 
 VelocityModifierAudioProcessor::~VelocityModifierAudioProcessor()
@@ -48,29 +69,29 @@ const String VelocityModifierAudioProcessor::getName() const
 
 bool VelocityModifierAudioProcessor::acceptsMidi() const
 {
-   #if JucePlugin_WantsMidiInput
+#if JucePlugin_WantsMidiInput
     return true;
-   #else
+#else
     return false;
-   #endif
+#endif
 }
 
 bool VelocityModifierAudioProcessor::producesMidi() const
 {
-   #if JucePlugin_ProducesMidiOutput
+#if JucePlugin_ProducesMidiOutput
     return true;
-   #else
+#else
     return false;
-   #endif
+#endif
 }
 
 bool VelocityModifierAudioProcessor::isMidiEffect() const
 {
-   #if JucePlugin_IsMidiEffect
+#if JucePlugin_IsMidiEffect
     return true;
-   #else
+#else
     return false;
-   #endif
+#endif
 }
 
 double VelocityModifierAudioProcessor::getTailLengthSeconds() const
@@ -81,7 +102,7 @@ double VelocityModifierAudioProcessor::getTailLengthSeconds() const
 int VelocityModifierAudioProcessor::getNumPrograms()
 {
     return 1;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
-                // so this should be at least 1, even if you're not really implementing programs.
+    // so this should be at least 1, even if you're not really implementing programs.
 }
 
 int VelocityModifierAudioProcessor::getCurrentProgram()
@@ -118,24 +139,24 @@ void VelocityModifierAudioProcessor::releaseResources()
 #ifndef JucePlugin_PreferredChannelConfigurations
 bool VelocityModifierAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-  #if JucePlugin_IsMidiEffect
+#if JucePlugin_IsMidiEffect
     ignoreUnused (layouts);
     return true;
-  #else
+#else
     // This is the place where you check if the layout is supported.
     // In this template code we only support mono or stereo.
     if (layouts.getMainOutputChannelSet() != AudioChannelSet::mono()
-     && layouts.getMainOutputChannelSet() != AudioChannelSet::stereo())
+        && layouts.getMainOutputChannelSet() != AudioChannelSet::stereo())
         return false;
-
+    
     // This checks if the input layout matches the output layout
-   #if ! JucePlugin_IsSynth
+#if ! JucePlugin_IsSynth
     if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
         return false;
-   #endif
-
+#endif
+    
     return true;
-  #endif
+#endif
 }
 #endif
 
@@ -147,6 +168,7 @@ void VelocityModifierAudioProcessor::processBlock (AudioBuffer<float>& buffer, M
     MidiMessage m;
     for (MidiBuffer::Iterator i (midiMessages); i.getNextEvent (m, time);)
     {
+        bool filterOut = false;
         if (m.isNoteOn())
         {
             uint8 oldVel = (uint8) m.getVelocity();
@@ -183,13 +205,27 @@ void VelocityModifierAudioProcessor::processBlock (AudioBuffer<float>& buffer, M
         else if (m.isPitchWheel())
         {
         }
-        else if (m.isControllerOfType(1)) {
-            // Change midiCompressionValue, leave Controller Message unaltered
+        else if (m.isControllerOfType(*midiCompressionControlCC)) {
+            // Change midiCompressionValue
             int cVal = m.getControllerValue();
-            *midiCompressionValue = (cVal - 64.0) / 127.0;
-            *midiCompressionValue = fmax(fmin(*midiCompressionValue, -1), 1);
+            *midiCompressionValue = (cVal - 64.0) / 64.0;
+            *midiCompressionValue = fmax(fmin(*midiCompressionValue, 1), -1);
+            
+            // Filter out message if requested
+            if(*midiCompressionFilterControl) {
+                filterOut = true;
+            }
+        } else if (m.isControllerOfType(*midiRangeControlCC)) {
+            int cVal = m.getControllerValue();
+            *midiRangeValue = cVal / 127.0;
+            
+            if(*midiRangeFilterControl) {
+                filterOut = true;
+            }
         }
-        processedMidi.addEvent (m, time);
+        if(!filterOut) {
+            processedMidi.addEvent (m, time);
+        }
     }
     midiMessages.swapWith (processedMidi);
 }
@@ -212,8 +248,14 @@ void VelocityModifierAudioProcessor::getStateInformation (MemoryBlock& destData)
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
     std::unique_ptr<XmlElement> xml (new XmlElement ("ParamVelocityModifier"));
-    xml->setAttribute ("midiCompressionValue", (double) *midiCompressionValue);
-    xml->setAttribute ("midiRangeValue", (double) *midiRangeValue);
+    
+    xml->setAttribute (p_midiCompressionValue, (double) *midiCompressionValue);
+    xml->setAttribute (p_midiCompressionFilterControl, *midiCompressionFilterControl);
+    xml->setAttribute (p_midiCompressionControlCC, *midiCompressionControlCC);
+    
+    xml->setAttribute (p_midiRangeValue, (double) *midiRangeValue);
+    xml->setAttribute (p_midiRangeFilterControl, *midiRangeFilterControl);
+    xml->setAttribute (p_midiRangeControlCC, *midiRangeControlCC);
     copyXmlToBinary (*xml, destData);
 }
 
@@ -226,8 +268,13 @@ void VelocityModifierAudioProcessor::setStateInformation (const void* data, int 
     {
         if (xmlState->hasTagName ("ParamVelocityModifier"))
         {
-            *midiCompressionValue = (float) xmlState->getDoubleAttribute ("midiCompressionValue", 0.0);
-            *midiRangeValue = (float) xmlState->getDoubleAttribute ("midiRangeValue", 1.0);
+            *midiCompressionValue = (float) xmlState->getDoubleAttribute (p_midiCompressionValue, 0.0);
+            *midiCompressionFilterControl = (bool) xmlState->getBoolAttribute(p_midiCompressionFilterControl, false);
+            *midiCompressionControlCC = (int) xmlState->getIntAttribute(p_midiCompressionControlCC, -1);
+            
+            *midiRangeValue = (float) xmlState->getDoubleAttribute (p_midiRangeValue, 1.0);
+            *midiRangeFilterControl = (bool) xmlState->getBoolAttribute(p_midiRangeFilterControl, false);
+            *midiRangeControlCC = (int) xmlState->getIntAttribute(p_midiRangeControlCC, -1);
         }
     }
 }
